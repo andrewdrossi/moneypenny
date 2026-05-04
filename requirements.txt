@@ -1,0 +1,7 @@
+streamlit
+pydantic
+requests
+python-dotenv
+google-genai
+mcp
+yfinance
