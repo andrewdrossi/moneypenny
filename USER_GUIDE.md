@@ -18,7 +18,7 @@ Use the main chat input to prompt Moneypenny.
 ## 3. Interpreting the Analyst Notebook
 To the right of the chat, you will see the **Analyst Notebook**. This panel reveals exactly what Moneypenny is doing in real-time.
 - **Thought**: The reasoning behind the current step.
-- **Action**: The specific tool or API Moneypenny is calling (e.g., `TranscriptProcessor` or `AlphaVantageClient`).
+- **Action**: The specific tool or API Moneypenny is calling (e.g., `TranscriptProcessor` or `YFinance MCP`).
 - **Observation**: The raw data returned by that tool, ensuring you always see the hard facts before the AI synthesis.
 
 ## 4. Recommendation Vault

@@ -179,13 +179,21 @@ with col_chat:
             if ticker:
                 st.session_state.current_ticker = ticker
 
-            # Fail-safe: if response_text is a string that looks like JSON, try to parse it
-            if isinstance(response_text, str) and response_text.strip().startswith("{") and response_text.strip().endswith("}"):
+            # Fail-safe: if response_text is a string that looks like JSON, try to parse it robustly
+            if isinstance(response_text, str) and "{" in response_text and "}" in response_text:
                 try:
                     import json as pyjson
-                    potential_data = pyjson.loads(response_text.strip())
-                    if isinstance(potential_data, dict) and "portfolio_weights" in potential_data:
-                        response_text = potential_data
+                    import re
+                    # Find the first '{' and the last '}' to strip markdown fences or filler text
+                    match = re.search(r'(\{.*\})', response_text, re.DOTALL)
+                    if match:
+                        potential_data = pyjson.loads(match.group(1))
+                        if isinstance(potential_data, dict):
+                            # It could be an 'analyze' response or a 'chat' response
+                            if "portfolio_weights" in potential_data:
+                                response_text = potential_data
+                            elif "response" in potential_data:
+                                response_text = potential_data.get("response")
                 except:
                     pass
 
@@ -206,56 +214,65 @@ with col_viz:
     data = st.session_state.get("current_data", {})
 
     if ticker and data and isinstance(data, dict) and "portfolio_weights" in data:
-        weights = data.get("portfolio_weights", {})
-        total = float(data.get("total_investment", 10000))
-        growth = float(data.get("projected_growth_percent", 0.0))
+        try:
+            weights = data.get("portfolio_weights", {})
+            # Use safe float conversion
+            def safe_float(v, default=0.0):
+                try:
+                    return float(v)
+                except (ValueError, TypeError):
+                    return default
 
-        # Pie Chart — Move to top as requested
-        st.markdown("### Portfolio Allocation")
-        import pandas as pd
-        import altair as alt
+            total = safe_float(data.get("total_investment"), 10000.0)
+            growth = safe_float(data.get("projected_growth_percent"), 0.0)
 
-        chart_data = {}
-        for category, value in weights.items():
-            if isinstance(value, dict) and "products" in value:
-                for product, pct in value["products"].items():
-                    chart_data[product] = float(pct)
-            else:
-                chart_data[category] = float(value)
+            # Pie Chart — Move to top as requested
+            st.markdown("### Portfolio Allocation")
+            import pandas as pd
+            import altair as alt
 
-        df = pd.DataFrame({"Asset": list(chart_data.keys()), "Weight": list(chart_data.values())})
-        chart = alt.Chart(df).mark_arc(innerRadius=40).encode(
-            theta=alt.Theta(field="Weight", type="quantitative"),
-            color=alt.Color(field="Asset", type="nominal"),
-            tooltip=["Asset", "Weight"]
-        ).properties(height=300) # Slightly smaller to fit single col
-        st.altair_chart(chart, use_container_width=True)
+            chart_data = {}
+            for category, value in weights.items():
+                if isinstance(value, dict) and "products" in value:
+                    for product, pct in value["products"].items():
+                        chart_data[product] = safe_float(pct)
+                else:
+                    chart_data[category] = safe_float(value)
 
-        # Metrics & Breakdown in single column
-        # Projected Growth
-        st.markdown("### Projected Growth")
-        end_value = total * (1 + growth / 100)
-        st.metric(label="1-Year Projected Portfolio Value",
-                  value=f"${end_value:,.2f}",
-                  delta=f"{growth:.2f}% Expected Return")
+            if chart_data:
+                df = pd.DataFrame({"Asset": list(chart_data.keys()), "Weight": list(chart_data.values())})
+                chart = alt.Chart(df).mark_arc(innerRadius=40).encode(
+                    theta=alt.Theta(field="Weight", type="quantitative"),
+                    color=alt.Color(field="Asset", type="nominal"),
+                    tooltip=["Asset", "Weight"]
+                ).properties(height=300)
+                st.altair_chart(chart, use_container_width=True)
 
-        # Expandable breakdown
-        st.markdown(f"### Breakdown (${total:,.0f} Investment)")
-        for category, value in weights.items():
-            # Support new nested format: {"weight": 30, "products": {...}}
-            if isinstance(value, dict) and "weight" in value:
-                cat_weight = float(value["weight"])
-                cat_amt = total * (cat_weight / 100)
-                products = value.get("products", {})
-                with st.expander(f"**{category}** — {cat_weight:.0f}% (${cat_amt:,.2f})"):
-                    for product, pct in products.items():
-                        p_amt = total * (float(pct) / 100)
-                        st.markdown(f"- **{product}**: {pct}% (${p_amt:,.2f})")
-            else:
-                # Backward compatibility: flat format {"Bonds": 30}
-                cat_weight = float(value)
-                cat_amt = total * (cat_weight / 100)
-                st.markdown(f"- **{category}**: {cat_weight:.0f}% (${cat_amt:,.2f})")
+            # Metrics & Breakdown in single column
+            st.markdown("### Projected Growth")
+            end_value = total * (1 + growth / 100)
+            st.metric(label="1-Year Projected Portfolio Value",
+                      value=f"${end_value:,.2f}",
+                      delta=f"{growth:.2f}% Expected Return")
+
+            # Expandable breakdown
+            st.markdown(f"### Breakdown (${total:,.0f} Investment)")
+            for category, value in weights.items():
+                if isinstance(value, dict) and "weight" in value:
+                    cat_weight = safe_float(value["weight"])
+                    cat_amt = total * (cat_weight / 100)
+                    products = value.get("products", {})
+                    with st.expander(f"**{category}** — {cat_weight:.0f}% (${cat_amt:,.2f})"):
+                        for product, pct in products.items():
+                            p_amt = total * (safe_float(pct) / 100)
+                            st.markdown(f"- **{product}**: {pct}% (${p_amt:,.2f})")
+                else:
+                    cat_weight = safe_float(value)
+                    cat_amt = total * (cat_weight / 100)
+                    st.markdown(f"- **{category}**: {cat_weight:.0f}% (${cat_amt:,.2f})")
+        except Exception as render_err:
+            st.error(f"Error rendering visualization: {render_err}")
+            st.json(data) # Show the raw data for debugging
 
     elif ticker:
         st.info("Looking up real-time statistics...")

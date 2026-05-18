@@ -1,9 +1,9 @@
 {
-    "Age": 30,
-    "Investment Amount": 100000,
-    "Job": "Banker",
+    "Age": 29,
+    "Investment Amount": 1000,
+    "Job": "MBA student",
     "Risk Tolerance": 5,
     "Retirement Age": 65,
-    "Literacy": "Beginner",
+    "Literacy": "Intermediate",
     "Bias": ""
 }

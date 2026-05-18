@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 import json
 import asyncio
@@ -17,7 +18,6 @@ class Engine:
     def __init__(self):
         self.tp_client = TranscriptProcessor()
         self.db = PortfolioDatabase()
-        self.api_key = os.getenv("ALPHA_VANTAGE_API_KEY", "demo")
 
         # --- Persistent background event loop ---
         # A single loop running in its own daemon thread is the only safe way
@@ -51,13 +51,17 @@ class Engine:
         if match:
             json_str = match.group(1)
             try:
+                # Handle common escaped character issues if they exist
                 return json.loads(json_str)
             except json.JSONDecodeError:
-                # If that failed, maybe it's just the text itself
                 pass
         
         # Fallback to the original text if no {} found or parsing failed
-        return json.loads(text.strip())
+        try:
+            return json.loads(text.strip())
+        except:
+            # If everything fails, return a safe dict with the text
+            return {"response": text, "recommendation_markdown": text, "tldr": ""}
 
     def _map_mcp_to_gemini(self, mcp_tools) -> list[types.Tool]:
         gemini_tools = []
@@ -116,7 +120,8 @@ class Engine:
                         yield streams
                 else:
                     server_path = os.path.join(os.path.dirname(__file__), "..", "tools", "yfinance_mcp.py")
-                    server_params = StdioServerParameters(command="uv", args=["run", "python", server_path])
+                    # Use 'uv run' if available for speed, but fallback to the current sys.executable for stability on the Pi
+                    server_params = StdioServerParameters(command=sys.executable, args=[server_path])
                     async with stdio_client(server_params) as streams:
                         yield streams
 
@@ -141,7 +146,7 @@ The user is likely focusing on the ticker: {ticker}.
 Formulate your query using the YFinance MCP tools to evaluate the user's specific concern.
 If the custom local server returns no data, explicitly state so, but provide the closest recommendation possible.
 
-CRITICAL INSTRUCTION: Your final output MUST be a valid JSON object. Do not include markdown wrappers.
+CRITICAL INSTRUCTION: Your final output MUST be a valid JSON object. DO NOT include markdown code blocks (```json) or any other text before or after the JSON.
 Use this EXACT JSON structure:
 {{
     "tldr": "A 5–7 bullet pithy executive summary (plain markdown, no HTML). Include: 🎯 Action, 📊 Allocation Snapshot, 📈 Key Metric, 🧠 Reasoning, ⚠️ Primary Risk, 📅 Horizon.",
@@ -351,7 +356,7 @@ Output Requirements:
 - "updated_profile_fields": A dictionary of any newly extracted profile data (e.g. {{"Job": "Software Engineer", "Risk Tolerance": 8, "Retirement Age": 60}}). Be highly effective at pulling these from descriptions.
 - "response": Your conversational reply. Politely interrogate for missing fields if intent is chat. NEVER perform stock analysis or provide ticker recommendations in this field; that must be handled by the 'analyze' intent.
 
-Respond STRICTLY in JSON format matching this structure:
+Respond STRICTLY in JSON format. DO NOT use markdown code blocks (```json). Match this structure:
 {{
     "intent": "chat",
     "missing_profile_info": ["Job", "Retirement Age"],
@@ -368,14 +373,7 @@ Respond STRICTLY in JSON format matching this structure:
                     config=types.GenerateContentConfig(response_mime_type="application/json")
                 )
                 raw_text = res.text.strip()
-                if raw_text.startswith("```json"):
-                    raw_text = raw_text[7:]
-                if raw_text.startswith("```"):
-                    raw_text = raw_text[3:]
-                if raw_text.endswith("```"):
-                    raw_text = raw_text[:-3]
-                
-                parsed_res = json.loads(raw_text.strip())
+                parsed_res = self._extract_json(raw_text)
                 
                 if parsed_res.get("intent") == "analyze" and not parsed_res.get("missing_profile_info"):
                     ticker = parsed_res.get("ticker", "VTI") or "VTI"

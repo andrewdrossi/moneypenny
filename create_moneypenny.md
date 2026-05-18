@@ -10,7 +10,7 @@ Moneypenny is an "Integrated Investment Intelligence" platform. It synthesizes h
 When triggered by "Moneypenny, build the system," you must generate the following infrastructure and User Interface components:
 
 ### 1. Environment & Core Tools (`moneypenny/tools/`)
-- **`alpha_vantage_client.py`**: A robust client for fetching Market Quotes, Sentiment Scores, and News.
+- **`yfinance_mcp.py`**: A robust MCP server for fetching Market Quotes, Sentiment Scores, and News via YFinance.
 - **`transcript_processor.py`**: A specialized tool to parse earnings call transcripts for "Executive Tone" indicators.
 - **`portfolio_database.py`**: A local persistence layer (JSON or SQLite) to store the User's Rich Profile and Recommendation History.
 

@@ -4,7 +4,7 @@ Moneypenny is a high-fidelity investment agent system built to bridge the gap be
 
 ## Technical Rigor & Architecture
 This project is separated into distinct, modular components:
-1. **Tools (`core/tools`)**: Contains scripts for external data fetching (Alpha Vantage for quantitative data) and simulated transcript processing for qualitative data ("Executive Tone"). Local persistence is managed via JSON.
+1. **Tools (`tools`)**: Contains scripts for external data fetching (YFinance via MCP for quantitative data) and simulated transcript processing for qualitative data ("Executive Tone"). Local persistence is managed via JSON.
 2. **Synthesis Engine (`core/engine.py`)**: The brain of Moneypenny. It implements a ReAct loop:
    - Injects the user's "Investor Profile" (risk tolerance, biases, demographics).
    - Fetches structural market data and qualitative executive tone.
@@ -16,7 +16,7 @@ This project is separated into distinct, modular components:
 ### Prerequisites
 - Python 3.10+
 - An API Key for Gemini (set `GEMINI_API_KEY` in environment, e.g., via `.env` file or export)
-- (Optional) An API Key for Alpha Vantage (set `ALPHA_VANTAGE_API_KEY` in environment, otherwise a demo key is used).
+- (Optional) Access to a remote YFinance MCP server (set `PI_MCP_URL` in environment). If not provided, it defaults to a local instance.
 
 ### Installation & Execution
 
